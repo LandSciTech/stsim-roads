@@ -1,4 +1,4 @@
-library(methods)
+library(methods) #TO DO: figure out why this is here...
 library(rsyncrosim)
 library(roads)
 library(raster)
@@ -16,7 +16,7 @@ GetSingleValueExpectData <- function(df, name) {
   return(v)
 }
 
-#e=list(LibraryFilePath="D:/JHMisc/Churchill",ProjectId=1,ScenarioId=416)
+#e=list(LibraryFilePath="D:/JHMisc/Churchill",ProjectId=1,ScenarioId=421)
 
 #Environment
 e = ssimEnvironment()
@@ -36,27 +36,29 @@ GLOBAL_TotalTimesteps = (GLOBAL_MaxTimestep - GLOBAL_MinTimestep + 1)
 #Simulation
 envBeginSimulation(GLOBAL_TotalIterations * GLOBAL_TotalTimesteps)
 
-for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
-  rdRoad  = datasheet(GLOBAL_Scenario,"ROADS_Road")
-  roadMethod = optionMapping[[rdRoad$RoadBuildingAlgorithm]]
- 
-  myStratum = datasheetRaster(GLOBAL_Scenario,datasheet="STSim_InitialConditionsSpatial",column="StratumFileName")
-  initialRoads =  raster(rdRoad$InitialRoadRaster)
-  initialCost = raster(rdRoad$CostRaster)
-  
-  rdTransitionRaster = datasheet(GLOBAL_Scenario,"ROADS_TransitionRaster")
-  #rdTransitionRaster
-  #QUESTION: how/when to use rdTransitionRaster?
+rdRoad  = datasheet(GLOBAL_Scenario,"ROADS_Road")
+roadMethod = optionMapping[[rdRoad$RoadBuildingAlgorithm]]
 
+myStratum = datasheetRaster(GLOBAL_Scenario,datasheet="STSim_InitialConditionsSpatial",column="StratumFileName")
+initialRoads =  raster(rdRoad$InitialRoadRaster)
+initialCost = raster(rdRoad$CostRaster)
+#TO DO: check for alignment.
+
+rdTransitionRaster = datasheet(GLOBAL_Scenario,"ROADS_TransitionRaster")
+#TO DO: figure out how to use rdTransitionRaster inputs.
+
+for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
+  #iteration=1
+  
+  #QUESTION: Why are all results copied? Only need SpatialTransitions.
   if(nrow(rdTransitionRaster)==0){
     newBlocks = datasheetRaster(GLOBAL_Scenario,datasheet="STSim_OutputSpatialTransition",iteration=iteration,timestep=max(1,GLOBAL_MinTimestep):GLOBAL_MaxTimestep,subset=expression(TransitionGroupID==rdRoad$RoadTransitionGroup))
   }else{stop("TO DO: Handle input transitions case.")}
-
-  #NOTE: map order must be correct - would be nice if this happened automatically.
+  
+  #NOTE: would be nice if maps were automatically pulled in correct order
   tag = paste(c(strsplit(names(newBlocks)[[1]],".",fixed=T)[[1]][1:2]),collapse=".")
   newBlocks=subset(newBlocks, paste0(tag,".ts",max(1,GLOBAL_MinTimestep):GLOBAL_MaxTimestep))
   newBlocks[newBlocks>0] = 1
-  #names(newBlocks)
 
   #TO DO - sort out cost surface. For now cost on current roads and newBlocks is 0, otherwise 1. 1000 for water bodies.
   cost = simpleCost(initialRoads,newBlocks[[1]],initialCost)
@@ -65,6 +67,7 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
   sim=list()
   for (timestep in GLOBAL_MinTimestep:GLOBAL_MaxTimestep) {
     #iteration = 1;timestep=1
+    #NOTE: presuming this will work in SyncroSim context...
     envReportProgress(iteration, timestep)
     
     cm = paste0(tag,".ts",timestep)
@@ -79,14 +82,22 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
       #TO DO: how to preferentially route roads through cutblocks after the first iteration?
       sim = projectRoads(newBlocks[[cm]],plotRoads=T,sim=sim)
     }
+    
     outRoads = sim$roads>0 #ignoring values for now.
 
-    plot(outRoads)    
-    datasheet(GLOBAL_Scenario) 
-
-    oDat = datasheet(GLOBAL_Scenario,"ROADS_OutputRaster")
-    ?saveDatasheet
-    ?save
+    cSheet =  "ROADS_OutputRaster"
+    
+    outRoadName = paste0("roads.it",iteration,".ts",timestep) 
+    roadDir =paste0(filepath(GLOBAL_Scenario),".output/Scenario-",scenarioId(GLOBAL_Scenario),"/",cSheet)
+    outRoadPath = paste0(roadDir,"/",outRoadName,".tif")
+    dir.create(roadDir,recursive=T)
+    writeRaster(outRoads,outRoadPath,overwrite=T)
+    
+    #datasheet(GLOBAL_Scenario,cSheet)
+    oDat = data.frame(Iteration=iteration,Timestep=timestep,Filename=outRoadPath)
+    
+    #QUESTION: how do I load a result into the database?
+    saveDatasheet(GLOBAL_Scenario,data=oDat,name=cSheet,append=T)
     
     envStepSimulation()
   }
