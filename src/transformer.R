@@ -16,7 +16,7 @@ GetSingleValueExpectData <- function(df, name) {
   return(v)
 }
 
-#e=list(LibraryFilePath="D:/JHMisc/Churchill",ProjectId=1,ScenarioId=421)
+#e=list(LibraryFilePath="D:/JHMisc/Churchill",ProjectId=1,ScenarioId=428)
 
 #Environment
 e = ssimEnvironment()
@@ -26,6 +26,7 @@ GLOBAL_Library = ssimLibrary(name = e$LibraryFilePath, session = GLOBAL_Session)
 GLOBAL_Project = project(GLOBAL_Library, project = as.integer(e$ProjectId))
 GLOBAL_Scenario = scenario(GLOBAL_Library, scenario = as.integer(e$ScenarioId))
 GLOBAL_RunControl = GetDataSheetExpectData("STSim_RunControl", GLOBAL_Scenario)
+#datasheet(GLOBAL_Scenario,"ROADS_OutputRaster")
 GLOBAL_MaxIteration = GetSingleValueExpectData(GLOBAL_RunControl, "MaximumIteration")
 GLOBAL_MinIteration = GetSingleValueExpectData(GLOBAL_RunControl, "MinimumIteration")
 GLOBAL_MinTimestep = GetSingleValueExpectData(GLOBAL_RunControl, "MinimumTimestep")
@@ -47,6 +48,8 @@ initialCost = raster(rdRoad$CostRaster)
 rdTransitionRaster = datasheet(GLOBAL_Scenario,"ROADS_TransitionRaster")
 #TO DO: figure out how to use rdTransitionRaster inputs.
 
+cSheet =  "ROADS_OutputRaster"
+oDat = datasheet(GLOBAL_Scenario,cSheet)
 for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
   #iteration=1
   
@@ -59,7 +62,7 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
   tag = paste(c(strsplit(names(newBlocks)[[1]],".",fixed=T)[[1]][1:2]),collapse=".")
   newBlocks=subset(newBlocks, paste0(tag,".ts",max(1,GLOBAL_MinTimestep):GLOBAL_MaxTimestep))
   newBlocks[newBlocks>0] = 1
-
+  
   #TO DO - sort out cost surface. For now cost on current roads and newBlocks is 0, otherwise 1. 1000 for water bodies.
   cost = simpleCost(initialRoads,newBlocks[[1]],initialCost)
   
@@ -84,8 +87,6 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
     }
     
     outRoads = sim$roads>0 #ignoring values for now.
-
-    cSheet =  "ROADS_OutputRaster"
     
     outRoadName = paste0("roads.it",iteration,".ts",timestep) 
     roadDir =paste0(filepath(GLOBAL_Scenario),".output/Scenario-",scenarioId(GLOBAL_Scenario),"/",cSheet)
@@ -94,14 +95,14 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
     writeRaster(outRoads,outRoadPath,overwrite=T)
     
     #datasheet(GLOBAL_Scenario,cSheet)
-    oDat = data.frame(Iteration=iteration,Timestep=timestep,Filename=outRoadPath)
-    
-    #QUESTION: how do I load a result into the database?
-    saveDatasheet(GLOBAL_Scenario,data=oDat,name=cSheet,append=T)
+    oDat = addRow(oDat,data.frame(Iteration=iteration,Timestep=timestep,Filename=outRoadPath))
     
     envStepSimulation()
   }
 }
+
+#QUESTION: how do I load a result into the database?
+saveDatasheet(GLOBAL_Scenario,data=oDat,name=cSheet,append=F)
 
 envEndSimulation()
 
