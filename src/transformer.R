@@ -2,6 +2,7 @@ library(methods) #TO DO: figure out why this is here...
 library(rsyncrosim)
 library(roads)
 library(raster)
+Sys.setenv(TZ='EST')
 optionMapping = list("Snapping"="snap","Minimum Spanning Tree"="mst","Sequential Least Cost Path"="lcp")
 
 GetDataSheetExpectData <- function(name, ssimObj) {
@@ -57,11 +58,16 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
   if(nrow(rdTransitionRaster)==0){
     newBlocks = datasheetRaster(GLOBAL_Scenario,datasheet="STSim_OutputSpatialTransition",iteration=iteration,timestep=max(1,GLOBAL_MinTimestep):GLOBAL_MaxTimestep,subset=expression(TransitionGroupID==rdRoad$RoadTransitionGroup))
   }else{stop("TO DO: Handle input transitions case.")}
+  if(class(newBlocks)=="RasterLayer"){
+    newBlocks=brick(newBlocks)
+    names(newBlocks)=paste0("tg.it.ts",GLOBAL_MaxTimestep)
+  }
   
   #NOTE: would be nice if maps were automatically pulled in correct order
   tag = paste(c(strsplit(names(newBlocks)[[1]],".",fixed=T)[[1]][1:2]),collapse=".")
   newBlocks=subset(newBlocks, paste0(tag,".ts",max(1,GLOBAL_MinTimestep):GLOBAL_MaxTimestep))
   newBlocks[newBlocks>0] = 1
+  newBlocks[newBlocks<0] = NA
   
   #TO DO - sort out cost surface. For now cost on current roads and newBlocks is 0, otherwise 1. 1000 for water bodies.
   cost = simpleCost(initialRoads,newBlocks[[1]],initialCost)
