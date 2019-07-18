@@ -47,60 +47,19 @@ for (iteration in GLOBAL_MinIteration:GLOBAL_MaxIteration) {
   
   lastElement=lastElement[length(lastElement)]
   if(grepl("it",lastElement,fixed=T)){
-    warning("Encountered odd spatial transition layer naming pattern. Use transformerInnerDebugSyncroSim.R in stsim-roads addon package to investigate further.")
-    names(newBlocks)=gsub(paste0(".",lastElement),"",names(newBlocks),fixed=T)
+    outRoads = data.frame(Iteration=iteration,layerNames = names(newBlocks))
+  }else{
+    outRoads = data.frame(Iteration=iteration,layerNames="ok")
   }
+  timestep=1
+  outRoadName = paste0("roads.it",iteration,".ts",timestep) 
+  outRoadPath = paste0(roadDir,"/",outRoadName,".csv")
   
-  tag = strsplit(names(newBlocks)[[1]],".ts",fixed=T)[[1]][1]
+  write.csv(outRoads,outRoadPath,row.names = F,append=T)
+
+  #datasheet(GLOBAL_Scenario,cSheet)
+  oDat = addRow(oDat,data.frame(Iteration=iteration,Timestep=timestep,Filename=outRoadPath))
+  #names(newBlocks)=gsub(paste0(".",lastElement),"",names(newBlocks),fixed=T)
   
-  
-  eTimes = sort(as.numeric(gsub(paste0(tag,".ts"),"",names(newBlocks),fixed=T)))
-  
-  sortNames = paste0(tag,".ts",eTimes)
-  missingBits = setdiff(sortNames,names(newBlocks))
-  if(length(missingBits)>0){
-    stop("Something is wrong. fix it.",paste(names(newBlocks),collapse=","))
-  }
-  newBlocks=subset(newBlocks, sortNames)
-  newBlocks[newBlocks>0] = 1
-  newBlocks[newBlocks<0] = NA
-  
-  #TO DO - sort out cost surface. For now cost on current roads and newBlocks is 0, otherwise 1. 1000 for water bodies.
-  cost = simpleCost(initialRoads,newBlocks[[1]],initialCost)
-  
-  
-  #QUESTION: checking for validity of initialRoads and initialCost already done?
-  sim=list()
-  for (timestep in GLOBAL_MinTimestep:GLOBAL_MaxTimestep) {
-    #iteration = 1;timestep=1
-    #NOTE: presuming this will work in SyncroSim context...
-    if(length(e)>0){envReportProgress(iteration, timestep)}
-    
-    
-    cm = paste0(tag,".ts",timestep)
-    if(!is.element(cm,names(newBlocks))){
-      envStepSimulation()
-      next
-    }
-    
-    if(1){
-      if(length(sim)==0){
-        sim = projectRoads(newBlocks[[cm]],cost,initialRoads,roadMethod=roadMethod,plotRoads=T)
-      }else{
-        #TO DO: how to preferentially route roads through cutblocks after the first iteration?
-        sim = projectRoads(newBlocks[[cm]],plotRoads=T,sim=sim)
-      }
-      outRoads = sim$roads>0 #ignoring values for now.
-    }else{outRoads = initialRoads}
-    
-    outRoadName = paste0("roads.it",iteration,".ts",timestep) 
-    outRoadPath = paste0(roadDir,"/",outRoadName,".tif")
-    
-    writeRaster(outRoads,outRoadPath,overwrite=T)
-    
-    #datasheet(GLOBAL_Scenario,cSheet)
-    oDat = addRow(oDat,data.frame(Iteration=iteration,Timestep=timestep,Filename=outRoadPath))
-    
-    if(length(e)>0){envStepSimulation()}
-  }
+  envStepSimulation()
 }
